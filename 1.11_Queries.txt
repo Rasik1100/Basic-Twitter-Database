@@ -1,0 +1,199 @@
+Group     : 1.11
+Topic     : Social Media Database
+File Name : 1.11_Queries
+************************************************************************************************
+
+Group Members: 1. Mann Shah             201701019
+	       2. Abhishek Sutariya     201701012
+	       3. Tathagat Shah	        201701053
+	       4. Arex Jambusarwala     201701043
+Group Leader : 5. Rasik Mahajan	        201701055
+
+------------------------------------------------------------------------------------------------
+
+
+--) List of post in which you were tagged
+
+with main as(
+	select unnest(regexp_matches(tweet,'@([A-Za-z0-9_]+)','g')) as u_name,post_id from post
+)
+
+select C.username,A.tweet from post A,profile B,profile C,main D where B.username=|| .|| and B.username=D.u_name
+and A.post_id=D.post_id and A.user_id=C.user_id;
+
+************************************************************************************************
+
+--) Feed of a given user
+
+select distinct A.tweet,A.post_time,A.user_id,case when true then 'promoted post' end as post_type
+from post A,advertisements B, profile C where A.post_id=B.post_id and
+exists (select target_audience(B.advert_id) = C.user_id)
+
+
+Union
+
+
+select distinct A.tweet,A.post_time,A.user_id,case when true then 'retweeted post' end as post_type
+from post A, ret_table C where C.post_id=A.post_id
+and C.user_id = any(select following_id from followings A,profile B where B.username=|| .|| and A.user_id=B.user_id)
+
+UNION
+
+select distinct A.tweet,A.post_time,A.user_id,case when true then 'not retweeted post' end as post_type
+from post A, followings B where
+ A.user_id = any(select following_id from followings A,profile B where B.username=|| .|| and A.user_id=B.user_id)
+order by post_time desc;
+
+************************************************************************************************
+
+--) List of all post which includes the hash tag which is trending
+
+-- a) Top Post's
+
+select C.first_name,C.last_name,B.tweet,B.post_time,B.num_likes from hash_tags A, post B,users C, verified D
+where A.unnest=(select unnest from trend where trend_num=|| .||) and A.post_id=B.post_id and B.user_id=C.user_id
+and C.user_id=D.user_id order by is_verified DESC
+
+-- b) Most Liked Post's
+
+select C.first_name,C.last_name,B.tweet,B.post_time,B.num_likes from hash_tags A, post B,users C, verified D
+where A.unnest=(select unnest from trend where trend_num=|| .||) and A.post_id=B.post_id and B.user_id=C.user_id
+and C.user_id=D.user_id order by B.num_likes DESC
+
+-- C) Latest Post's
+
+select C.first_name,C.last_name,B.tweet,B.post_time,B.num_likes from hash_tags A, post B,users C, verified D
+where A.unnest=(select unnest from trend where trend_num=|| .||) and A.post_id=B.post_id and B.user_id=C.user_id
+and C.user_id=D.user_id order by B.post_time DESC
+
+************************************************************************************************
+
+--) List of top 20 hash tags which is trending Worldwide
+
+create or replace view hash_extract as 
+select regexp_matches(tweet,'#([A-Za-z0-9]+)','g') as tags,post_id from post;
+
+select row_number()over(order by count(tags)) as trend_num,
+			unnest(tags),count(tags) from hash_extract
+			group by tags
+			order by count(tags) DESC;
+
+************************************************************************************************
+
+--) List of top 20 hash tags which is trending in the given country
+
+create or replace view hash_extract as 
+select regexp_matches(tweet,'#([A-Za-z0-9]+)','g') as tags,post_id from post;
+
+select row_number()over(order by count(tags)) as trend_num,
+			unnest(tags),count(tags) from hash_extract
+			natural join post where region = || .|| 
+			group by tags
+			order by tags,count(tags) DESC;
+
+************************************************************************************************
+
+--) Number of users joined according to country and year of joining 
+
+select count(user_id) ,extract(year from date_of_join),
+                         country from users natural join profile 
+                         group by extract(year from date_of_join),country
+                         order by count(user_id) desc
+
+************************************************************************************************
+
+--) Number of users joined according to there age and country
+
+select count(user_id) ,2019 - extract(year from date_of_birth) as age,
+                         country from users natural join profile 
+                         group by extract(year from date_of_birth),
+                         country order by count(user_id) desc
+
+************************************************************************************************
+
+--) No of users joined according to there age
+
+select count(user_id) ,extract(year from age(current_date,date_of_birth))
+                         as age from users natural join profile 
+                         group by  extract(year from age(current_date,date_of_birth))
+                         order by count(user_id) desc
+
+************************************************************************************************
+
+--) Month's has highest number of messaging
+
+with main as (
+               select count(message_id) as mess_count , extract(month from message_time) as month from 
+                          messaging natural join message
+                          group by month
+                          order by count(message_id) desc
+)
+select month_name,mess_count from main A,months B where B.month_id=A.month order by mess_count DESC
+
+************************************************************************************************
+
+--) Country having the maxmimum number of verified users
+
+select count(A.user_id),country from verified A,profile B where 
+                        A.user_id=B.user_id and A.is_verified=true
+                        group by B.country order by count(A.user_id)DESC;
+
+************************************************************************************************
+
+--) Most Number of messages grouped by country and month
+
+with main as(
+             select count(message_id) , extract(month from message_time) as month , profile.country from 
+             profile join messaging on messaging.sender_id = profile.user_id natural join message
+             group by month,country
+             order by count(message_id) desc
+             )
+
+select A.count,B.month_name,A.country from main A,months B where A.month=B.month_id
+order by count DESC;
+
+************************************************************************************************
+
+--) List users followed by the given user havn't posted yet
+
+with main as(
+            select following_id from followings where user_id=any(select to_get_id('"""+uname+"""'))
+            except
+            select user_id from post where  user_id=any(select following_id from
+            followings where user_id=any(select to_get_id('"""+uname+"""')))
+  	    group by user_id
+            )
+select B.username from main A,profile B where A.following_id=B.user_id;
+
+************************************************************************************************
+
+--) List of users which is followed back for a given user
+
+with main as(
+            select A.following_id from followings A where A.user_id=any(select to_get_id('rasik237'))
+            and exists (select user_id from followings where following_id=A.user_id
+            and user_id=A.following_id)
+            )
+select A.username from profile A,main B where A.user_id=B.following_id
+
+************************************************************************************************
+
+--) Record of Active users 
+
+select active_users();  
+
+
+
+************************************************************************************************
+--) Views
+create or replace view hash_extract as 
+select regexp_matches(tweet,'#([A-Za-z0-9]+)','g') as tags,post_id from post;
+
+create or replace view trend as
+			select row_number()over(order by count(tags)DESC) as trend_num,unnest(tags),count(tags) from hash_extract
+			natural join post
+			group by tags
+			order by count(tags) DESC;
+ 
+create or replace view hash_tags as 
+	select unnest(tags),post_id from hash_extract

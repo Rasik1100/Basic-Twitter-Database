@@ -1,0 +1,80 @@
+Group     : 1.11
+Topic     : Social Media Database
+File Name : 1.11_stored
+************************************************************************************************
+
+Group Members: 1. Mann Shah             201701019
+	       2. Abhishek Sutariya     201701012
+	       3. Tathagat Shah	        201701053
+	       4. Arex Jambusarwala     201701043
+Group Leader : 5. Rasik Mahajan	        201701055  
+
+************************************************************************************************
+
+-- To get the list of active users
+
+create or replace function active_users() returns 
+table(	user_id int,
+	  	first_num varchar,
+	  	last_name varchar,
+	  	phone_num varchar,
+	  	date_of_join date
+) as $BODY$
+begin 
+	return query
+		select users.user_id,users.first_name,users.last_name,users.phone_num,users.date_of_join
+		from users where exists(select users.user_id from post where post.user_id = users.user_id 
+								 and( post.post_time between (current_date - interval '1' year)
+									 and current_date + interval '1' day))
+		or
+		(exists(select users.user_id from messaging where  messaging.sender_id = users.user_id 
+			   and exists (select message.message_time from message where message.message_id = messaging.message_id 
+				   and(message.message_time between(current_date - interval '1' year) and current_date +
+					   interval '1' day )))  )
+		or
+		exists(select users.user_id from comments where comments.commentor_id = users.user_id
+			  and (comments.comment_time between(current_date - interval '1' year) and current_date
+				   + interval '1' day ));
+end
+$BODY$ language plpgsql	
+
+------------------------------------------------------------------------------------------------
+
+-- To get the username by its user_id
+
+create or replace function to_get_uname (id int) returns table(res varchar) as $BODY$
+
+begin
+	return query
+	select username from profile where user_id=id;
+end
+$BODY$ language plpgsql;
+
+------------------------------------------------------------------------------------------------
+
+-- To get the user_id by its username
+
+create or replace function to_get_id (uname varchar) returns table(id int) as $BODY$
+
+begin
+	return query
+	select user_id from profile where username=uname;
+end
+$BODY$ language plpgsql;
+
+------------------------------------------------------------------------------------------------
+
+-- To get the list of targetted audience for the advertisements
+
+create or replace function target_audience(ad_id int) 
+	returns table(userid int) as $BODY$
+	begin
+		return query
+			select A.user_id from profile A,advertisements B where B.advert_id=ad_id and
+			extract(year from age(current_date,A.date_of_birth)) between  B.min_age and B.max_age
+			and A.country=B.region;
+
+	end
+$BODY$ language plpgsql;
+
+------------------------------------------------------------------------------------------------
