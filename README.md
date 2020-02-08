@@ -1,5 +1,5 @@
 # Sasta-Twitter
-A basic prototype model of twitter built using Postgresql
+A basic database prototype model of twitter built using Postgresql. It is based on RDBMS.
 
 Source of tweets    : Twitter
 Source of User Data : https://mockaroo.com/
